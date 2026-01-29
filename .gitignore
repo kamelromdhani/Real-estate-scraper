@@ -1,0 +1,17 @@
+# Virtual environment
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Debug files
+debug_listing.html
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+
+data/
