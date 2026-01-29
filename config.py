@@ -37,7 +37,7 @@ BACKOFF_FACTOR = 2       # Exponential backoff multiplier
 
 # Pagination settings
 MAX_PAGES = None         # Set to None for unlimited, or integer to limit
-LISTINGS_PER_PAGE = 35   # Approximate listings per page (for progress tracking)
+LISTINGS_PER_PAGE = 80   # Approximate listings per page (for progress tracking)
 
 # ============================================================================
 # OUTPUT CONFIGURATION

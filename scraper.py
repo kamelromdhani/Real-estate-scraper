@@ -169,10 +169,11 @@ class TayaraScraper:
                     break
         
         # Detect if there's a next page
-        # Common patterns: "Next" button, page numbers, or pagination component
-        has_next_page = False
+        # Default strategy: If we found listings, assume there is a next page
+        # The scrape_all loop will verify if the next page is valid (404 check) or empty
+        has_next_page = len(listing_links) > 0
         
-        # Look for pagination elements
+        # Look for pagination elements (optional confirmation)
         pagination = soup.find_all(['a', 'button'], text=re.compile(r'suivant|next|›|»', re.IGNORECASE))
         if pagination:
             has_next_page = True
@@ -183,8 +184,9 @@ class TayaraScraper:
         if next_page_links:
             has_next_page = True
         
-        # If we found fewer listings than expected, might be last page
-        if len(listing_links) < config.LISTINGS_PER_PAGE * 0.5:  # Less than 50% of expected
+        # If we found very few listings, might be last page
+        # Only stop if we found significantly fewer than expected
+        if len(listing_links) < 5:
             has_next_page = False
         
         logger.info(f"Page {page}: Found {len(listing_links)} listings, has_next={has_next_page}")
@@ -822,9 +824,20 @@ class TayaraScraper:
                 
                 listing_data = self.parse_listing(link)
                 if listing_data:
-                    all_listings.append(listing_data)
+                    # Check if we already have this listing (by ID or URL)
+                    is_duplicate = False
+                    for existing in all_listings:
+                        if existing.get('listing_id') == listing_data.get('listing_id') or \
+                           existing.get('listing_url') == listing_data.get('listing_url'):
+                            is_duplicate = True
+                            break
+                    
+                    if not is_duplicate:
+                        all_listings.append(listing_data)
+                    else:
+                        logger.info(f"Skipping duplicate listing: {listing_data.get('listing_id', 'unknown')}")
                 
-                # Check sample size again
+                # Check sample size again (only count unique listings)
                 if config.SAMPLE_SIZE and len(all_listings) >= config.SAMPLE_SIZE:
                     break
             
