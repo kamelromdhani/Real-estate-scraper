@@ -797,56 +797,80 @@ class TayaraScraper:
         page = 1
         max_pages = max_pages or config.MAX_PAGES
         
-        logger.info("Starting full scrape of Tayara.tn immobilier listings")
+        # Use a set of listing IDs for much faster duplicate checking O(1)
+        # This prevents the scraper from slowing down as the list grows
+        scraped_ids = set()
         
-        while True:
-            # Check if we've reached page limit
-            if max_pages and page > max_pages:
-                logger.info(f"Reached maximum page limit: {max_pages}")
-                break
-            
-            # Check sample size limit (for testing)
-            if config.SAMPLE_SIZE and len(all_listings) >= config.SAMPLE_SIZE:
-                logger.info(f"Reached sample size limit: {config.SAMPLE_SIZE}")
-                break
-            
-            # Get listing links from current page
-            logger.info(f"Scraping page {page}...")
-            listing_links, has_next = self.get_listing_links(page)
-            
-            if not listing_links:
-                logger.warning(f"No listings found on page {page}")
-                break
-            
-            # Scrape each listing
-            for idx, link in enumerate(listing_links, 1):
-                logger.info(f"Page {page}, Listing {idx}/{len(listing_links)}: {link}")
-                
-                listing_data = self.parse_listing(link)
-                if listing_data:
-                    # Check if we already have this listing (by ID or URL)
-                    is_duplicate = False
-                    for existing in all_listings:
-                        if existing.get('listing_id') == listing_data.get('listing_id') or \
-                           existing.get('listing_url') == listing_data.get('listing_url'):
-                            is_duplicate = True
-                            break
-                    
-                    if not is_duplicate:
-                        all_listings.append(listing_data)
-                    else:
-                        logger.info(f"Skipping duplicate listing: {listing_data.get('listing_id', 'unknown')}")
-                
-                # Check sample size again (only count unique listings)
-                if config.SAMPLE_SIZE and len(all_listings) >= config.SAMPLE_SIZE:
+        logger.info(f"Starting full scrape of Tayara.tn immobilier listings (Sample size: {config.SAMPLE_SIZE})")
+        
+        try:
+            while True:
+                # Check if we've reached page limit
+                if max_pages and page > max_pages:
+                    logger.info(f"Reached maximum page limit: {max_pages}")
                     break
-            
-            # Move to next page if available
-            if not has_next:
-                logger.info("No more pages available")
-                break
-            
-            page += 1
+                
+                # Check sample size limit (for testing)
+                if config.SAMPLE_SIZE and len(all_listings) >= config.SAMPLE_SIZE:
+                    logger.info(f"Reached sample size limit: {config.SAMPLE_SIZE}")
+                    break
+                
+                # Get listing links from current page
+                logger.info(f"Scraping page {page}...")
+                listing_links, has_next = self.get_listing_links(page)
+                
+                if not listing_links:
+                    logger.warning(f"No listings found on page {page}")
+                    break
+                
+                # Scrape each listing
+                for idx, link in enumerate(listing_links, 1):
+                    # Periodically save progress to prevent data loss on crashes (every 50 listings)
+                    if len(all_listings) > 0 and len(all_listings) % 50 == 0 and not config.DRY_RUN:
+                        self._save_checkpoint(all_listings)
+                    
+                    logger.info(f"Page {page}, Listing {idx}/{len(listing_links)} (Total unique: {len(all_listings)}): {link}")
+                    
+                    listing_data = self.parse_listing(link)
+                    if listing_data:
+                        lid = listing_data.get('listing_id')
+                        lurl = listing_data.get('listing_url')
+                        
+                        # Use set for O(1) duplicate check
+                        if lid not in scraped_ids and lurl not in scraped_ids:
+                            all_listings.append(listing_data)
+                            if lid: scraped_ids.add(lid)
+                            if lurl: scraped_ids.add(lurl)
+                        else:
+                            logger.info(f"Skipping duplicate listing: {lid or lurl}")
+                    
+                    # Check sample size again (only count unique listings)
+                    if config.SAMPLE_SIZE and len(all_listings) >= config.SAMPLE_SIZE:
+                        break
+                
+                # Move to next page if available
+                if not has_next:
+                    logger.info("No more pages available")
+                    break
+                
+                page += 1
+                
+        except (KeyboardInterrupt, Exception) as e:
+            if isinstance(e, KeyboardInterrupt):
+                logger.warning("Scraping process interrupted. Returning partial results.")
+            else:
+                logger.error(f"Error during scrape at page {page}, listing {idx}: {str(e)}")
+            # Fall through to return whatever we managed to collect
         
         logger.info(f"Scraping complete: {len(all_listings)} listings collected, {self.errors_encountered} errors")
         return all_listings
+
+    def _save_checkpoint(self, listings: List[Dict]):
+        """Save a periodic checkpoint of scraped data"""
+        try:
+            checkpoint_path = config.PROCESSED_DATA_DIR / "latest_scrape_checkpoint.json"
+            with open(checkpoint_path, 'w', encoding='utf-8') as f:
+                json.dump(listings, f, indent=4, ensure_ascii=False)
+            logger.debug(f"Saved checkpoint of {len(listings)} listings to {checkpoint_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save checkpoint: {e}")
