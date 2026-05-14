@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Tayara.tn Real Estate Scraper - Main Entry Point
+Tunisian Real Estate Scraper - Main Entry Point
 
 Usage:
     python main.py [options]
 
 Options:
+    --source NAME       Source to scrape: tayara or menzili
     --max-pages N       Limit scraping to N pages
     --sample-size N     Limit scraping to N listings (for testing)
     --output-dir PATH   Custom output directory
@@ -14,6 +15,9 @@ Options:
     --use-playwright    Use Playwright for JavaScript-rendered content
 
 Examples:
+    # Scrape Menzili listings
+    python main.py --source menzili --max-pages 2
+
     # Scrape first 5 pages
     python main.py --max-pages 5
     
@@ -33,6 +37,7 @@ from datetime import datetime
 # Import project modules
 import config
 from scraper import TayaraScraper
+from menzili_scraper import MenziliScraper
 from data_exporter import DataExporter, normalize_listings, validate_data_quality
 from logger_config import setup_logging, log_scraping_session_start, log_scraping_session_end
 
@@ -40,9 +45,16 @@ from logger_config import setup_logging, log_scraping_session_start, log_scrapin
 def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description='Scrape real estate listings from Tayara.tn',
+        description='Scrape real estate listings from Tunisian real estate sites',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__
+    )
+
+    parser.add_argument(
+        '--source',
+        choices=sorted(config.SOURCE_CONFIGS.keys()),
+        default=config.DEFAULT_SOURCE,
+        help=f"Source to scrape (default: {config.DEFAULT_SOURCE})"
     )
     
     parser.add_argument(
@@ -63,7 +75,7 @@ def parse_arguments():
         '--output-dir',
         type=Path,
         default=None,
-        help=f'Custom output directory (default: {config.OUTPUT_DIR})'
+        help='Custom output directory (default: source-specific data directory)'
     )
     
     parser.add_argument(
@@ -96,6 +108,8 @@ def parse_arguments():
 
 def update_config_from_args(args):
     """Update configuration based on command line arguments"""
+    config.set_active_source(args.source)
+
     if args.max_pages:
         config.MAX_PAGES = args.max_pages
     
@@ -103,8 +117,7 @@ def update_config_from_args(args):
         config.SAMPLE_SIZE = args.sample_size
     
     if args.output_dir:
-        config.OUTPUT_DIR = args.output_dir
-        config.ensure_directories()
+        config.set_output_dir(args.output_dir)
     
     if args.debug:
         config.DEBUG_MODE = True
@@ -133,8 +146,11 @@ def main():
     
     try:
         # Initialize scraper
-        logger.info("Initializing Tayara scraper...")
-        scraper = TayaraScraper()
+        logger.info(f"Initializing {config.SOURCE_DISPLAY_NAME} scraper...")
+        if args.source == 'menzili':
+            scraper = MenziliScraper()
+        else:
+            scraper = TayaraScraper()
         
         # Perform scraping
         logger.info("Starting scraping process...")
@@ -159,7 +175,11 @@ def main():
         if not config.DRY_RUN:
             # Export data
             timestamp = datetime.now().strftime(config.TIMESTAMP_FORMAT)
-            exporter = DataExporter(timestamp=timestamp)
+            exporter = DataExporter(
+                timestamp=timestamp,
+                source=config.SOURCE_DOMAIN,
+                filename_prefix=config.FILENAME_PREFIX,
+            )
             
             if args.export_format in ['csv', 'both']:
                 logger.info("Exporting to CSV...")

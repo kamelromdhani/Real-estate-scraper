@@ -20,6 +20,15 @@ import config
 logger = logging.getLogger(__name__)
 
 
+def has_required_field(listing: Dict, field: str) -> bool:
+    """Check required fields, accepting normalized price fields for legacy config."""
+    if field == 'price':
+        has_numeric_price = listing.get('price_numeric') not in [None, '', 'N/A']
+        has_raw_price = listing.get('price_raw') not in [None, '', 'N/A']
+        return has_numeric_price or has_raw_price
+    return bool(listing.get(field) and listing.get(field) != 'N/A')
+
+
 class DataExporter:
     """
     Handles exporting scraped data to various formats
@@ -30,14 +39,18 @@ class DataExporter:
     - Data normalization before export
     """
     
-    def __init__(self, timestamp: str = None):
+    def __init__(self, timestamp: str = None, source: str = None, filename_prefix: str = None):
         """
         Initialize exporter with timestamp for file naming
         
         Args:
             timestamp: Custom timestamp string, or None to generate current
+            source: Source domain to write into JSON metadata
+            filename_prefix: Prefix used in exported filenames
         """
         self.timestamp = timestamp or datetime.now().strftime(config.TIMESTAMP_FORMAT)
+        self.source = source or getattr(config, 'SOURCE_DOMAIN', 'tayara.tn')
+        self.filename_prefix = filename_prefix or getattr(config, 'FILENAME_PREFIX', 'tayara')
         
     def export_to_csv(self, listings: List[Dict], output_dir: Path = None) -> Path:
         """
@@ -55,7 +68,11 @@ class DataExporter:
             return None
         
         output_dir = output_dir or config.PROCESSED_DATA_DIR
-        filename = config.get_output_filename(config.CSV_FILENAME_TEMPLATE, self.timestamp)
+        filename = config.get_output_filename(
+            config.CSV_FILENAME_TEMPLATE,
+            self.timestamp,
+            source=self.filename_prefix,
+        )
         filepath = output_dir / filename
         
         # Flatten nested criteria dictionary for CSV
@@ -103,7 +120,11 @@ class DataExporter:
             return None
         
         output_dir = output_dir or config.PROCESSED_DATA_DIR
-        filename = config.get_output_filename(config.JSON_FILENAME_TEMPLATE, self.timestamp)
+        filename = config.get_output_filename(
+            config.JSON_FILENAME_TEMPLATE,
+            self.timestamp,
+            source=self.filename_prefix,
+        )
         filepath = output_dir / filename
         
         # Create metadata
@@ -111,7 +132,7 @@ class DataExporter:
             'metadata': {
                 'export_timestamp': datetime.now().isoformat(),
                 'total_listings': len(listings),
-                'source': 'tayara.tn',
+                'source': self.source,
                 'category': 'immobilier',
             },
             'listings': listings
@@ -214,7 +235,7 @@ class DataExporter:
     def save_report(self, report: Dict, output_dir: Path = None) -> Path:
         """Save summary report to JSON file"""
         output_dir = output_dir or config.PROCESSED_DATA_DIR
-        filename = f"summary_report_{self.timestamp}.json"
+        filename = f"summary_report_{self.filename_prefix}_{self.timestamp}.json"
         filepath = output_dir / filename
         
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -287,7 +308,7 @@ def validate_data_quality(listings: List[Dict]) -> Dict:
         
         # Check required fields
         for field in config.MIN_REQUIRED_FIELDS:
-            if not listing.get(field) or listing.get(field) == 'N/A':
+            if not has_required_field(listing, field):
                 issues['missing_required_fields'].append({
                     'listing_id': listing_id,
                     'field': field

@@ -68,7 +68,7 @@ def log_scraping_session_start():
     logger = logging.getLogger(__name__)
     
     logger.info("=" * 70)
-    logger.info("TAYARA.TN SCRAPING SESSION STARTED")
+    logger.info(f"{config.SOURCE_DISPLAY_NAME.upper()} SCRAPING SESSION STARTED")
     logger.info("=" * 70)
     logger.info(f"Target URL: {config.IMMOBILIER_URL}")
     logger.info(f"Max pages: {config.MAX_PAGES or 'Unlimited'}")
@@ -85,7 +85,7 @@ def log_scraping_session_end(listings_count: int, errors_count: int, duration: f
     logger = logging.getLogger(__name__)
     
     logger.info("=" * 70)
-    logger.info("TAYARA.TN SCRAPING SESSION COMPLETED")
+    logger.info(f"{config.SOURCE_DISPLAY_NAME.upper()} SCRAPING SESSION COMPLETED")
     logger.info("=" * 70)
     logger.info(f"Total listings scraped: {listings_count}")
     logger.info(f"Errors encountered: {errors_count}")

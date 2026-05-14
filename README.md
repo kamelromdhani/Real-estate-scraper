@@ -1,6 +1,6 @@
-# Tayara.tn Real Estate Scraper
+# Tunisian Real Estate Scraper
 
-A robust, production-ready web scraper for extracting real estate listings from tayara.tn (Immobilier section). Built with Python, featuring comprehensive data extraction, quality validation, and pipeline integration capabilities.
+A robust, production-ready web scraper for extracting real estate listings from Tunisian real estate portals. It supports Tayara.tn by default and Menzili.tn through the same CLI, export, validation, and pipeline flow.
 
 ## 🎯 Features
 
@@ -68,6 +68,9 @@ playwright install chromium
 # Run full scrape (all pages)
 python main.py
 
+# Scrape Menzili listings
+python main.py --source menzili --max-pages 5
+
 # Scrape first 5 pages
 python main.py --max-pages 5
 
@@ -125,6 +128,7 @@ print(f"Quality score: {report['quality_score']}")
 tayara-scraper/
 ├── config.py              # Centralized configuration
 ├── scraper.py            # Core scraping logic
+├── menzili_scraper.py    # Menzili.tn scraping logic
 ├── data_exporter.py      # Data processing and export
 ├── logger_config.py      # Logging setup
 ├── main.py               # Main entry point

@@ -778,6 +778,14 @@ class TayaraScraper:
     def _validate_listing(self, data: Dict) -> bool:
         """Validate that listing has minimum required fields"""
         for field in config.MIN_REQUIRED_FIELDS:
+            if field == 'price':
+                has_price = (
+                    data.get('price_numeric') not in [None, '', 'N/A']
+                    or data.get('price_raw') not in [None, '', 'N/A']
+                )
+                if has_price:
+                    continue
+
             if field not in data or not data[field] or data[field] == 'N/A':
                 logger.debug(f"Validation failed: missing or empty field '{field}'")
                 return False
