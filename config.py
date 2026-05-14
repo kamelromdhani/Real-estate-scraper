@@ -27,6 +27,14 @@ SOURCE_CONFIGS = {
         'output_dir': Path("data/menzili_scrape"),
         'filename_prefix': 'menzili',
     },
+    'mubawab': {
+        'display_name': 'Mubawab.tn',
+        'source_domain': 'mubawab.tn',
+        'base_url': 'https://www.mubawab.tn',
+        'immobilier_url': 'https://www.mubawab.tn/fr/sc/appartements-a-vendre',
+        'output_dir': Path("data/mubawab_scrape"),
+        'filename_prefix': 'mubawab',
+    },
 }
 
 DEFAULT_SOURCE = "tayara"
@@ -184,6 +192,14 @@ DATABASE_CONFIG = {
 # Data quality checks
 ENABLE_DATA_VALIDATION = True
 MIN_REQUIRED_FIELDS = ['title', 'listing_url', 'price']  # Minimum fields for valid listing
+MIN_DATE_POSTED = None  # YYYY-MM-DD; keep listings posted on or after this date
+
+# Mubawab search builder settings
+MUBAWAB_TRANSACTION = "sale"  # sale or rent
+MUBAWAB_PROPERTY_TYPE = "logement"  # logement, terrain, apartment, house, villa, etc.
+MUBAWAB_LOCATION = None  # Slug or name, e.g. la-marsa or "La Marsa"
+MUBAWAB_LOCATION_LEVEL = "st"  # st, ct, cd, sd, is, or sc
+MUBAWAB_SEARCH_URL = None  # Exact Mubawab search URL override
 
 # ============================================================================
 # DEBUGGING & DEVELOPMENT

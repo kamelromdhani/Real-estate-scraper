@@ -73,6 +73,13 @@ def log_scraping_session_start():
     logger.info(f"Target URL: {config.IMMOBILIER_URL}")
     logger.info(f"Max pages: {config.MAX_PAGES or 'Unlimited'}")
     logger.info(f"Sample size: {config.SAMPLE_SIZE or 'Unlimited'}")
+    logger.info(f"Min date posted: {config.MIN_DATE_POSTED or 'None'}")
+    if config.ACTIVE_SOURCE == 'mubawab':
+        logger.info(f"Mubawab transaction: {config.MUBAWAB_TRANSACTION}")
+        logger.info(f"Mubawab property type: {config.MUBAWAB_PROPERTY_TYPE}")
+        logger.info(f"Mubawab location: {config.MUBAWAB_LOCATION or 'All Tunisia'}")
+        logger.info(f"Mubawab location level: {config.MUBAWAB_LOCATION_LEVEL}")
+        logger.info(f"Mubawab search URL override: {config.MUBAWAB_SEARCH_URL or 'None'}")
     logger.info(f"Request delay: {config.REQUEST_DELAY_MIN}-{config.REQUEST_DELAY_MAX}s")
     logger.info(f"Output directory: {config.OUTPUT_DIR}")
     logger.info(f"Debug mode: {config.DEBUG_MODE}")

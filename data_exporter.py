@@ -10,9 +10,9 @@ Handles:
 
 import csv
 import json
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List, Optional
 import logging
 
 import config
@@ -27,6 +27,56 @@ def has_required_field(listing: Dict, field: str) -> bool:
         has_raw_price = listing.get('price_raw') not in [None, '', 'N/A']
         return has_numeric_price or has_raw_price
     return bool(listing.get(field) and listing.get(field) != 'N/A')
+
+
+def parse_date_posted_value(value) -> Optional[date]:
+    """Parse a listing date_posted value into a date object."""
+    if isinstance(value, datetime):
+        return value.date()
+
+    if isinstance(value, date):
+        return value
+
+    if not value or value == 'N/A':
+        return None
+
+    date_text = str(value).strip()
+    try:
+        return datetime.fromisoformat(date_text.replace('Z', '+00:00')).date()
+    except ValueError:
+        pass
+
+    for pattern in config.DATE_PATTERNS:
+        try:
+            return datetime.strptime(date_text, pattern).date()
+        except ValueError:
+            continue
+
+    return None
+
+
+def filter_listings_by_min_date_posted(listings: List[Dict], min_date_posted: str) -> List[Dict]:
+    """
+    Keep listings with date_posted on or after min_date_posted.
+
+    Listings with missing or unparsable dates are excluded because they cannot
+    satisfy the cutoff.
+    """
+    cutoff_date = parse_date_posted_value(min_date_posted)
+    if not cutoff_date:
+        raise ValueError(f"Invalid min_date_posted value: {min_date_posted}")
+
+    filtered = []
+    for listing in listings:
+        listing_date = parse_date_posted_value(listing.get('date_posted'))
+        if listing_date and listing_date >= cutoff_date:
+            filtered.append(listing)
+
+    logger.info(
+        f"Filtered listings by date_posted >= {cutoff_date.isoformat()}: "
+        f"{len(filtered)}/{len(listings)} kept"
+    )
+    return filtered
 
 
 class DataExporter:

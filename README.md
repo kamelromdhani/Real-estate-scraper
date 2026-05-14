@@ -1,6 +1,7 @@
 # Tunisian Real Estate Scraper
 
 A robust, production-ready web scraper for extracting real estate listings from Tunisian real estate portals. It supports Tayara.tn by default and Menzili.tn through the same CLI, export, validation, and pipeline flow.
+Mubawab.tn is also supported through explicit search dimensions such as transaction, property type, and location.
 
 ## 🎯 Features
 
@@ -71,6 +72,18 @@ python main.py
 # Scrape Menzili listings
 python main.py --source menzili --max-pages 5
 
+# Scrape Mubawab apartment sale listings in La Marsa
+python main.py --source mubawab --transaction sale --property-type logement --location "La Marsa"
+
+# Scrape Mubawab land sale listings in Tunis
+python main.py --source mubawab --transaction sale --property-type terrain --location Tunis --location-level ct
+
+# Use an exact Mubawab search URL when the location path is more specific
+python main.py --source mubawab --search-url "https://www.mubawab.tn/fr/st/la-marsa/terrains-a-vendre"
+
+# Keep listings posted on or after a date
+python main.py --source menzili --min-date-posted 2025-12-01
+
 # Scrape first 5 pages
 python main.py --max-pages 5
 
@@ -82,6 +95,29 @@ python main.py --debug
 
 # Dry run (no data saved)
 python main.py --dry-run
+```
+
+### Mubawab Property Types
+
+For Mubawab, `--property-type logement` currently maps to apartment listings only:
+
+```bash
+# Apartments for sale across Tunisia
+python main.py --source mubawab --transaction sale --property-type logement
+
+# Houses for sale across Tunisia
+python main.py --source mubawab --transaction sale --property-type maison
+
+# Villas / luxury houses for sale across Tunisia
+python main.py --source mubawab --transaction sale --property-type villa
+```
+
+To collect apartments, houses, and villas together, run separate scrapes for each property type. You can combine these with location filters:
+
+```bash
+python main.py --source mubawab --transaction sale --property-type logement --location "La Marsa"
+python main.py --source mubawab --transaction sale --property-type maison --location "La Marsa"
+python main.py --source mubawab --transaction sale --property-type villa --location "La Marsa"
 ```
 
 ### Advanced Usage
@@ -129,6 +165,7 @@ tayara-scraper/
 ├── config.py              # Centralized configuration
 ├── scraper.py            # Core scraping logic
 ├── menzili_scraper.py    # Menzili.tn scraping logic
+├── mubawab_scraper.py    # Mubawab.tn scraping logic
 ├── data_exporter.py      # Data processing and export
 ├── logger_config.py      # Logging setup
 ├── main.py               # Main entry point
