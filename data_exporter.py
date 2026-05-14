@@ -10,14 +10,73 @@ Handles:
 
 import csv
 import json
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List, Optional
 import logging
 
 import config
 
 logger = logging.getLogger(__name__)
+
+
+def has_required_field(listing: Dict, field: str) -> bool:
+    """Check required fields, accepting normalized price fields for legacy config."""
+    if field == 'price':
+        has_numeric_price = listing.get('price_numeric') not in [None, '', 'N/A']
+        has_raw_price = listing.get('price_raw') not in [None, '', 'N/A']
+        return has_numeric_price or has_raw_price
+    return bool(listing.get(field) and listing.get(field) != 'N/A')
+
+
+def parse_date_posted_value(value) -> Optional[date]:
+    """Parse a listing date_posted value into a date object."""
+    if isinstance(value, datetime):
+        return value.date()
+
+    if isinstance(value, date):
+        return value
+
+    if not value or value == 'N/A':
+        return None
+
+    date_text = str(value).strip()
+    try:
+        return datetime.fromisoformat(date_text.replace('Z', '+00:00')).date()
+    except ValueError:
+        pass
+
+    for pattern in config.DATE_PATTERNS:
+        try:
+            return datetime.strptime(date_text, pattern).date()
+        except ValueError:
+            continue
+
+    return None
+
+
+def filter_listings_by_min_date_posted(listings: List[Dict], min_date_posted: str) -> List[Dict]:
+    """
+    Keep listings with date_posted on or after min_date_posted.
+
+    Listings with missing or unparsable dates are excluded because they cannot
+    satisfy the cutoff.
+    """
+    cutoff_date = parse_date_posted_value(min_date_posted)
+    if not cutoff_date:
+        raise ValueError(f"Invalid min_date_posted value: {min_date_posted}")
+
+    filtered = []
+    for listing in listings:
+        listing_date = parse_date_posted_value(listing.get('date_posted'))
+        if listing_date and listing_date >= cutoff_date:
+            filtered.append(listing)
+
+    logger.info(
+        f"Filtered listings by date_posted >= {cutoff_date.isoformat()}: "
+        f"{len(filtered)}/{len(listings)} kept"
+    )
+    return filtered
 
 
 class DataExporter:
@@ -30,14 +89,18 @@ class DataExporter:
     - Data normalization before export
     """
     
-    def __init__(self, timestamp: str = None):
+    def __init__(self, timestamp: str = None, source: str = None, filename_prefix: str = None):
         """
         Initialize exporter with timestamp for file naming
         
         Args:
             timestamp: Custom timestamp string, or None to generate current
+            source: Source domain to write into JSON metadata
+            filename_prefix: Prefix used in exported filenames
         """
         self.timestamp = timestamp or datetime.now().strftime(config.TIMESTAMP_FORMAT)
+        self.source = source or getattr(config, 'SOURCE_DOMAIN', 'tayara.tn')
+        self.filename_prefix = filename_prefix or getattr(config, 'FILENAME_PREFIX', 'tayara')
         
     def export_to_csv(self, listings: List[Dict], output_dir: Path = None) -> Path:
         """
@@ -55,7 +118,11 @@ class DataExporter:
             return None
         
         output_dir = output_dir or config.PROCESSED_DATA_DIR
-        filename = config.get_output_filename(config.CSV_FILENAME_TEMPLATE, self.timestamp)
+        filename = config.get_output_filename(
+            config.CSV_FILENAME_TEMPLATE,
+            self.timestamp,
+            source=self.filename_prefix,
+        )
         filepath = output_dir / filename
         
         # Flatten nested criteria dictionary for CSV
@@ -103,7 +170,11 @@ class DataExporter:
             return None
         
         output_dir = output_dir or config.PROCESSED_DATA_DIR
-        filename = config.get_output_filename(config.JSON_FILENAME_TEMPLATE, self.timestamp)
+        filename = config.get_output_filename(
+            config.JSON_FILENAME_TEMPLATE,
+            self.timestamp,
+            source=self.filename_prefix,
+        )
         filepath = output_dir / filename
         
         # Create metadata
@@ -111,7 +182,7 @@ class DataExporter:
             'metadata': {
                 'export_timestamp': datetime.now().isoformat(),
                 'total_listings': len(listings),
-                'source': 'tayara.tn',
+                'source': self.source,
                 'category': 'immobilier',
             },
             'listings': listings
@@ -214,7 +285,7 @@ class DataExporter:
     def save_report(self, report: Dict, output_dir: Path = None) -> Path:
         """Save summary report to JSON file"""
         output_dir = output_dir or config.PROCESSED_DATA_DIR
-        filename = f"summary_report_{self.timestamp}.json"
+        filename = f"summary_report_{self.filename_prefix}_{self.timestamp}.json"
         filepath = output_dir / filename
         
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -287,7 +358,7 @@ def validate_data_quality(listings: List[Dict]) -> Dict:
         
         # Check required fields
         for field in config.MIN_REQUIRED_FIELDS:
-            if not listing.get(field) or listing.get(field) == 'N/A':
+            if not has_required_field(listing, field):
                 issues['missing_required_fields'].append({
                     'listing_id': listing_id,
                     'field': field

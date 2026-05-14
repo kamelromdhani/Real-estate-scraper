@@ -1,6 +1,6 @@
 """
-Configuration file for Tayara.tn Real Estate Scraper
-Centralizes all settings for easy modification and deployment
+Configuration file for the Tunisian real estate scrapers.
+Centralizes all settings for easy modification and deployment.
 """
 
 import os
@@ -10,8 +10,41 @@ from pathlib import Path
 # BASE CONFIGURATION
 # ============================================================================
 
-BASE_URL = "https://www.tayara.tn"
-IMMOBILIER_URL = f"{BASE_URL}/listing/c/Immobilier"
+SOURCE_CONFIGS = {
+    'tayara': {
+        'display_name': 'Tayara.tn',
+        'source_domain': 'tayara.tn',
+        'base_url': 'https://www.tayara.tn',
+        'immobilier_url': 'https://www.tayara.tn/listing/c/Immobilier',
+        'output_dir': Path("data/tayara_scrape"),
+        'filename_prefix': 'tayara',
+    },
+    'menzili': {
+        'display_name': 'Menzili.tn',
+        'source_domain': 'menzili.tn',
+        'base_url': 'https://www.menzili.tn',
+        'immobilier_url': 'https://www.menzili.tn/immo/immobilier-tunisie',
+        'output_dir': Path("data/menzili_scrape"),
+        'filename_prefix': 'menzili',
+    },
+    'mubawab': {
+        'display_name': 'Mubawab.tn',
+        'source_domain': 'mubawab.tn',
+        'base_url': 'https://www.mubawab.tn',
+        'immobilier_url': 'https://www.mubawab.tn/fr/sc/appartements-a-vendre',
+        'output_dir': Path("data/mubawab_scrape"),
+        'filename_prefix': 'mubawab',
+    },
+}
+
+DEFAULT_SOURCE = "tayara"
+ACTIVE_SOURCE = DEFAULT_SOURCE
+
+BASE_URL = SOURCE_CONFIGS[ACTIVE_SOURCE]['base_url']
+IMMOBILIER_URL = SOURCE_CONFIGS[ACTIVE_SOURCE]['immobilier_url']
+SOURCE_DISPLAY_NAME = SOURCE_CONFIGS[ACTIVE_SOURCE]['display_name']
+SOURCE_DOMAIN = SOURCE_CONFIGS[ACTIVE_SOURCE]['source_domain']
+FILENAME_PREFIX = SOURCE_CONFIGS[ACTIVE_SOURCE]['filename_prefix']
 
 # ============================================================================
 # SCRAPING PARAMETERS
@@ -44,7 +77,7 @@ LISTINGS_PER_PAGE = 80   # Approximate listings per page (for progress tracking)
 # ============================================================================
 
 # Output directory structure
-OUTPUT_DIR = Path("data/tayara_scrape")
+OUTPUT_DIR = SOURCE_CONFIGS[ACTIVE_SOURCE]['output_dir']
 RAW_DATA_DIR = OUTPUT_DIR / "raw"
 PROCESSED_DATA_DIR = OUTPUT_DIR / "processed"
 LOGS_DIR = OUTPUT_DIR / "logs"
@@ -52,8 +85,8 @@ IMAGES_DIR = OUTPUT_DIR / "images"  # For future image download feature
 
 # Output file naming
 TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
-CSV_FILENAME_TEMPLATE = "tayara_listings_{timestamp}.csv"
-JSON_FILENAME_TEMPLATE = "tayara_listings_{timestamp}.json"
+CSV_FILENAME_TEMPLATE = "{source}_listings_{timestamp}.csv"
+JSON_FILENAME_TEMPLATE = "{source}_listings_{timestamp}.json"
 LOG_FILENAME_TEMPLATE = "scraper_{timestamp}.log"
 
 # ============================================================================
@@ -159,6 +192,14 @@ DATABASE_CONFIG = {
 # Data quality checks
 ENABLE_DATA_VALIDATION = True
 MIN_REQUIRED_FIELDS = ['title', 'listing_url', 'price']  # Minimum fields for valid listing
+MIN_DATE_POSTED = None  # YYYY-MM-DD; keep listings posted on or after this date
+
+# Mubawab search builder settings
+MUBAWAB_TRANSACTION = "sale"  # sale or rent
+MUBAWAB_PROPERTY_TYPE = "logement"  # logement, terrain, apartment, house, villa, etc.
+MUBAWAB_LOCATION = None  # Slug or name, e.g. la-marsa or "La Marsa"
+MUBAWAB_LOCATION_LEVEL = "st"  # st, ct, cd, sd, is, or sc
+MUBAWAB_SEARCH_URL = None  # Exact Mubawab search URL override
 
 # ============================================================================
 # DEBUGGING & DEVELOPMENT
@@ -185,9 +226,41 @@ def ensure_directories():
     for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)
 
-def get_output_filename(template, timestamp):
+def set_output_dir(output_dir):
+    """Update output directory globals and create the directory tree."""
+    global OUTPUT_DIR, RAW_DATA_DIR, PROCESSED_DATA_DIR, LOGS_DIR, IMAGES_DIR
+
+    OUTPUT_DIR = Path(output_dir)
+    RAW_DATA_DIR = OUTPUT_DIR / "raw"
+    PROCESSED_DATA_DIR = OUTPUT_DIR / "processed"
+    LOGS_DIR = OUTPUT_DIR / "logs"
+    IMAGES_DIR = OUTPUT_DIR / "images"
+    ensure_directories()
+
+def set_active_source(source):
+    """Switch scraper-wide source settings."""
+    global ACTIVE_SOURCE, BASE_URL, IMMOBILIER_URL, SOURCE_DISPLAY_NAME
+    global SOURCE_DOMAIN, FILENAME_PREFIX
+
+    if source not in SOURCE_CONFIGS:
+        valid_sources = ', '.join(sorted(SOURCE_CONFIGS))
+        raise ValueError(f"Unsupported source '{source}'. Expected one of: {valid_sources}")
+
+    source_config = SOURCE_CONFIGS[source]
+    ACTIVE_SOURCE = source
+    BASE_URL = source_config['base_url']
+    IMMOBILIER_URL = source_config['immobilier_url']
+    SOURCE_DISPLAY_NAME = source_config['display_name']
+    SOURCE_DOMAIN = source_config['source_domain']
+    FILENAME_PREFIX = source_config['filename_prefix']
+    set_output_dir(source_config['output_dir'])
+
+def get_output_filename(template, timestamp, source=None):
     """Generate output filename with timestamp"""
-    return template.format(timestamp=timestamp)
+    return template.format(
+        timestamp=timestamp,
+        source=source or FILENAME_PREFIX,
+    )
 
 # Auto-create directories on import
 ensure_directories()
